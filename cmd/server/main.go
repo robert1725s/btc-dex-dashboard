@@ -1,33 +1,46 @@
-// cmd/server/main.go
-// このファイルはアプリケーションのエントリーポイント（開始点）です。
-
 package main
 
 import (
+	"log"
 	"net/http"
 	"time"
+
+	"btc-dex-dashboard/internal/domain/model"
+	"btc-dex-dashboard/internal/infrastructure/database"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	// Gin のデフォルトルーターを作成
-	// Default() は Logger と Recovery ミドルウェアが含まれている
+	db, err := database.NewDB("dev.db")
+	if err != nil {
+		log.Fatal("failed to connect database:", err)
+	}
+
+	if err := database.Seed(db); err != nil {
+		log.Fatal("failed to seed database:", err)
+	}
+	log.Println("Database initialized successfully")
+
 	r := gin.Default()
 
-	// GET /api/health エンドポイントを定義
-	// 第1引数: パス
-	// 第2引数: ハンドラー関数（リクエストを処理する関数）
 	r.GET("/api/health", func(c *gin.Context) {
-		// c.JSON() で JSON レスポンスを返す
-		// 第1引数: HTTP ステータスコード
-		// 第2引数: レスポンスボディ（gin.H は map[string]any のエイリアス）
 		c.JSON(http.StatusOK, gin.H{
 			"status":    "ok",
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 		})
 	})
 
-	// サーバーを起動（デフォルトは :8080）
+	r.GET("/api/exchanges", func(c *gin.Context) {
+		var exchanges []model.Exchange
+		result := db.Find(&exchanges)
+		if result.Error != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"exchanges": exchanges})
+	})
+
+	log.Println("Server starting on :8080")
 	r.Run(":8080")
 }
