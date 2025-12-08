@@ -17,7 +17,7 @@ func NewDB(dsn string) (*gorm.DB, error) {
 	err = db.AutoMigrate(
 		&model.Exchange{},
 		&model.Market{},
-		&model.Price1m{},
+		&model.Price{},
 		&model.FundingRate{},
 	)
 	if err != nil {
