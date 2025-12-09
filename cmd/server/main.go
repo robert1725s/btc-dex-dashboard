@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"btc-dex-dashboard/internal/domain/model"
+	"btc-dex-dashboard/internal/api/handler"
 	"btc-dex-dashboard/internal/infrastructure/database"
+	"btc-dex-dashboard/internal/repository"
+	"btc-dex-dashboard/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,6 +24,20 @@ func main() {
 	}
 	log.Println("Database initialized successfully")
 
+	// Repository
+	exchangeRepo := repository.NewGormExchangeRepository(db)
+	marketRepo := repository.NewGormMarketRepository(db)
+	priceRepo := repository.NewGormPriceRepository(db)
+	fundingRepo := repository.NewGormFundingRateRepository(db)
+
+	// Service
+	spreadService := service.NewSpreadService(marketRepo, priceRepo)
+	fundingService := service.NewFundingService(marketRepo, fundingRepo)
+
+	// Handler
+	spreadHandler := handler.NewSpreadHandler(spreadService)
+	fundingHandler := handler.NewFundingHandler(fundingService)
+
 	r := gin.Default()
 
 	r.GET("/api/health", func(c *gin.Context) {
@@ -32,14 +48,16 @@ func main() {
 	})
 
 	r.GET("/api/exchanges", func(c *gin.Context) {
-		var exchanges []model.Exchange
-		result := db.Find(&exchanges)
-		if result.Error != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		exchanges, err := exchangeRepo.FindAll(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"exchanges": exchanges})
 	})
+
+	r.GET("/api/spread", spreadHandler.GetSpread)
+	r.GET("/api/funding-rates", fundingHandler.GetRates)
 
 	log.Println("Server starting on :8080")
 	r.Run(":8080")
