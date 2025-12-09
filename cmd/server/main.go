@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"time"
 
 	"btc-dex-dashboard/internal/api/handler"
 	"btc-dex-dashboard/internal/infrastructure/database"
+	"btc-dex-dashboard/internal/infrastructure/dex"
+	"btc-dex-dashboard/internal/job"
 	"btc-dex-dashboard/internal/repository"
 	"btc-dex-dashboard/internal/service"
 
@@ -29,6 +32,29 @@ func main() {
 	marketRepo := repository.NewGormMarketRepository(db)
 	priceRepo := repository.NewGormPriceRepository(db)
 	fundingRepo := repository.NewGormFundingRateRepository(db)
+
+	// MarketID を取得（DEX名 → MarketID のマッピング）
+	ctx := context.Background()
+	markets, err := marketRepo.FindAll(ctx)
+	if err != nil {
+		log.Fatal("failed to get markets:", err)
+	}
+	marketIDs := make(map[string]uint)
+	for _, m := range markets {
+		marketIDs[m.Exchange.Key] = m.ID
+	}
+
+	// DEX クライアント
+	clients := []dex.DexClient{
+		dex.NewHyperliquidClient(),
+		dex.NewLighterClient(),
+		dex.NewAsterClient(),
+	}
+
+	// 定期ジョブ
+	fetcher := job.NewPriceFetcher(clients, priceRepo, marketIDs)
+	scheduler := job.NewScheduler(fetcher, 2*time.Second)
+	go scheduler.Start(ctx)
 
 	// Service
 	spreadService := service.NewSpreadService(marketRepo, priceRepo)
