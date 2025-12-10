@@ -1,0 +1,13 @@
+server:
+  port: "8080"
+
+database:
+  path: "dev.db"
+
+cors:
+  allowed_origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"
+
+job:
+  interval_seconds: 2

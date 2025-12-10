@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"btc-dex-dashboard/internal/api/handler"
+	"btc-dex-dashboard/internal/api/middleware"
+	"btc-dex-dashboard/internal/config"
 	"btc-dex-dashboard/internal/infrastructure/database"
 	"btc-dex-dashboard/internal/infrastructure/dex"
 	"btc-dex-dashboard/internal/job"
@@ -17,7 +19,15 @@ import (
 )
 
 func main() {
-	db, err := database.NewDB("dev.db")
+	// 設定読み込み
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal("failed to load config:", err)
+	}
+	log.Printf("Config loaded: port=%s, db=%s, interval=%ds",
+		cfg.Server.Port, cfg.Database.Path, cfg.Job.IntervalSeconds)
+
+	db, err := database.NewDB(cfg.Database.Path)
 	if err != nil {
 		log.Fatal("failed to connect database:", err)
 	}
@@ -52,8 +62,9 @@ func main() {
 	}
 
 	// 定期ジョブ
+	interval := time.Duration(cfg.Job.IntervalSeconds) * time.Second
 	fetcher := job.NewPriceFetcher(clients, priceRepo, marketIDs)
-	scheduler := job.NewScheduler(fetcher, 2*time.Second)
+	scheduler := job.NewScheduler(fetcher, interval)
 	go scheduler.Start(ctx)
 
 	// Service
@@ -65,6 +76,9 @@ func main() {
 	fundingHandler := handler.NewFundingHandler(fundingService)
 
 	r := gin.Default()
+
+	// CORS ミドルウェア
+	r.Use(middleware.CORS(cfg.CORS.AllowedOrigins))
 
 	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -85,6 +99,6 @@ func main() {
 	r.GET("/api/spread", spreadHandler.GetSpread)
 	r.GET("/api/funding-rates", fundingHandler.GetRates)
 
-	log.Println("Server starting on :8080")
-	r.Run(":8080")
+	log.Printf("Server starting on :%s", cfg.Server.Port)
+	r.Run(":" + cfg.Server.Port)
 }
