@@ -1,6 +1,8 @@
 # BTC DEX Dashboard
 
-Go + React を使った DEX（分散型取引所）間の BTC 価格スプレッド監視ダッシュボード。
+Go + React を使った DEX（分散型取引所）間の BTC 価格スプレッド監視ダッシュボード
+
+<img width="1901" height="922" alt="スクリーンショット 2025-12-12 15 57 02" src="https://github.com/user-attachments/assets/b6f34480-ca69-408d-bb9e-666efd270812" />
 
 ## 概要
 
